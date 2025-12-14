@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Kitap Bölüm Ayırıcı (Pro Versiyon)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        h1 { color: #333; margin-bottom: 10px; font-size: 28px; }
+        .subtitle { color: #666; margin-bottom: 30px; font-size: 14px; }
+        .upload-area {
+            border: 3px dashed #2a5298;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8f9ff;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .upload-area:hover { border-color: #1e3c72; background: #f0f1ff; }
+        .upload-area.dragover { border-color: #1e3c72; background: #e8e9ff; transform: scale(1.02); }
+        input[type="file"] { display: none; }
+        .upload-icon { font-size: 48px; margin-bottom: 15px; }
+        .format-badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px; }
+        .badge { background: #2a5298; color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .mode-selection { display: flex; gap: 15px; margin-bottom: 30px; }
+        .mode-btn {
+            flex: 1; padding: 20px; border: 2px solid #ddd; border-radius: 12px;
+            background: white; cursor: pointer; transition: all 0.3s; text-align: center;
+        }
+        .mode-btn:hover { border-color: #2a5298; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(42, 82, 152, 0.2); }
+        .mode-btn.active { border-color: #2a5298; background: #f0f8ff; }
+        .mode-btn h3 { color: #333; margin-bottom: 8px; font-size: 16px; }
+        .mode-btn p { color: #666; font-size: 13px; }
+        .split-section { background: #f8f9fa; padding: 25px; border-radius: 15px; margin-bottom: 20px; }
+        .split-item {
+            display: flex; gap: 10px; margin-bottom: 15px; align-items: center;
+            background: white; padding: 12px; border-radius: 8px; border: 1px solid #e0e0e0;
+        }
+        .split-item input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .split-item input[type="text"] { flex: 2; }
+        .split-item input[type="number"] { flex: 0.8; }
+        .split-item input:focus { outline: none; border-color: #2a5298; }
+        .remove-btn {
+            background: #ff4757; color: white; border: none; padding: 10px 16px;
+            border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;
+        }
+        .remove-btn:hover { background: #ff3838; transform: scale(1.05); }
+        .add-btn, .process-btn, .auto-detect-btn {
+            background: #2a5298; color: white; border: none; padding: 14px 30px;
+            border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600;
+            width: 100%; margin-top: 10px; transition: all 0.3s;
+        }
+        .add-btn:hover, .process-btn:hover, .auto-detect-btn:hover {
+            background: #1e3c72; transform: translateY(-2px); box-shadow: 0 10px 20px rgba(42, 82, 152, 0.3);
+        }
+        .auto-detect-btn { background: #9b59b6; margin-bottom: 20px; }
+        .auto-detect-btn:hover { background: #8e44ad; }
+        .process-btn { background: #2ecc71; margin-top: 20px; font-size: 18px; }
+        .process-btn:hover { background: #27ae60; }
+        .process-btn:disabled, .auto-detect-btn:disabled { background: #95a5a6; cursor: not-allowed; transform: none; }
+        .info { background: #e3f2fd; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #2196f3; }
+        .warning { background: #fff3cd; padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #ffc107; }
+        .progress { margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; display: none; }
+        .progress-bar { width: 100%; height: 30px; background: #e0e0e0; border-radius: 15px; overflow: hidden; margin-bottom: 10px; }
+        .progress-fill {
+            height: 100%; background: linear-gradient(90deg, #2a5298 0%, #2ecc71 100%);
+            width: 0%; transition: width 0.3s; display: flex; align-items: center;
+            justify-content: center; color: white; font-weight: 600;
+        }
+        .status { text-align: center; color: #666; font-size: 14px; }
+        .hidden { display: none; }
+        .bookmark-list { max-height: 300px; overflow-y: auto; background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
+        .bookmark-item {
+            padding: 8px 12px; margin-bottom: 5px; background: #f8f9fa;
+            border-radius: 6px; font-size: 14px; display: flex; justify-content: space-between;
+        }
+        .bookmark-item .title { color: #333; font-weight: 500; }
+        .bookmark-item .page { color: #2a5298; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 E-Kitap Bölüm Ayırıcı</h1>
+        <p class="subtitle">PDF ve EPUB kitaplarınızı bölümlere ayırın ve ZIP olarak indirin.</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📖</div>
+            <p style="font-size: 16px; color: #333; margin-bottom: 10px;">Dosyanızı buraya sürükleyin veya tıklayın</p>
+            <p style="font-size: 12px; color: #999;">Maksimum boyut: 500MB</p>
+            <div class="format-badges">
+                <span class="badge">PDF → PDF</span>
+                <span class="badge" style="background:#e67e22">EPUB → MD (Markdown)</span>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,.epub">
+        </div>
+
+        <div id="fileInfo" class="info hidden">
+            <strong>Dosya:</strong> <span id="fileName"></span><br>
+            <strong>Tip:</strong> <span id="fileType"></span><br>
+            <strong id="pageCountLabel"></strong> <span id="pageCount"></span>
+        </div>
+
+        <div id="modeSection" class="hidden">
+            <h3 style="margin-bottom: 15px; color: #333;">Bölümlendirme Yöntemi</h3>
+            <div class="mode-selection">
+                <div class="mode-btn active" id="autoMode" onclick="selectMode('auto')">
+                    <h3>🤖 Otomatik</h3>
+                    <p>İçindekiler yapısını kullan</p>
+                </div>
+                <div class="mode-btn" id="manualMode" onclick="selectMode('manual')">
+                    <h3>✏️ Manuel</h3>
+                    <p>Kendin belirle</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="autoSection" class="hidden">
+            <button class="auto-detect-btn" id="detectBtn">🔍 Bölümleri Algıla</button>
+            <div id="bookmarkInfo" class="hidden"></div>
+        </div>
+
+        <div id="splitSection" class="split-section hidden">
+            <h3 style="margin-bottom: 20px; color: #333;">Bölümler</h3>
+            <div id="splitList"></div>
+            <button class="add-btn" id="addSplitBtn">+ Yeni Bölüm</button>
+        </div>
+
+        <button class="process-btn hidden" id="processBtn">🚀 ZIP Oluştur ve İndir</button>
+
+        <div class="progress" id="progressSection">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+            <div class="status" id="statusText">İşleniyor...</div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        let fileType = null, pdfDoc = null, pdfData = null, epubData = null, splits = [], currentMode = 'auto';
+        const $ = id => document.getElementById(id);
+
+        $('uploadArea').onclick = () => $('fileInput').click();
+        $('uploadArea').ondragover = e => { e.preventDefault(); $('uploadArea').classList.add('dragover'); };
+        $('uploadArea').ondragleave = () => $('uploadArea').classList.remove('dragover');
+        $('uploadArea').ondrop = e => {
+            e.preventDefault();
+            $('uploadArea').classList.remove('dragover');
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        };
+        $('fileInput').onchange = e => e.target.files[0] && handleFile(e.target.files[0]);
+
+        window.selectMode = mode => {
+            currentMode = mode;
+            $('autoMode').classList.toggle('active', mode === 'auto');
+            $('manualMode').classList.toggle('active', mode === 'manual');
+            
+            if (mode === 'auto') {
+                $('autoSection').classList.remove('hidden');
+                $('splitSection').classList.add('hidden');
+                $('processBtn').classList.add('hidden');
+            } else {
+                $('autoSection').classList.add('hidden');
+                $('splitSection').classList.remove('hidden');
+                $('processBtn').classList.remove('hidden');
+                splits = [{name: 'Bölüm 1', start: 1, end: getTotalPages()}];
+                renderSplits();
+            }
+        };
+
+        function getTotalPages() {
+            return fileType === 'pdf' ? pdfDoc.numPages : (epubData?.chapters.length || 1);
+        }
+
+        async function handleFile(file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            $('fileName').textContent = file.name;
+            
+            if (ext === 'pdf') await handlePDF(file);
+            else if (ext === 'epub') await handleEPUB(file);
+        }
+
+        async function handlePDF(file) {
+            fileType = 'pdf';
+            $('fileType').textContent = 'PDF';
+            $('pageCountLabel').textContent = 'Sayfa:';
+            
+            const reader = new FileReader();
+            reader.onload = async e => {
+                pdfData = new Uint8Array(e.target.result);
+                pdfDoc = await pdfjsLib.getDocument(pdfData).promise;
+                $('pageCount').textContent = pdfDoc.numPages;
+                $('fileInfo').classList.remove('hidden');
+                $('modeSection').classList.remove('hidden');
+                selectMode('auto');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function handleEPUB(file) {
+            fileType = 'epub';
+            $('fileType').textContent = 'EPUB';
+            $('pageCountLabel').textContent = 'Bölüm:';
+            
+            const reader = new FileReader();
+            reader.onload = async e => {
+                const zip = await JSZip.loadAsync(e.target.result);
+                epubData = await parseEPUB(zip);
+                $('pageCount').textContent = epubData.chapters.length;
+                $('fileInfo').classList.remove('hidden');
+                $('modeSection').classList.remove('hidden');
+                selectMode('auto');
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function parseEPUB(zip) {
+            const chapters = [], toc = [];
+            const containerXml = await zip.file('META-INF/container.xml').async('string');
+            const parser = new DOMParser();
+            const containerDoc = parser.parseFromString(containerXml, 'text/xml');
+            const opfPath = containerDoc.querySelector('rootfile').getAttribute('full-path');
+            const opfContent = await zip.file(opfPath).async('string');
+            const opfDoc = parser.parseFromString(opfContent, 'text/xml');
+            
+            const tocItem = opfDoc.querySelector('item[media-type="application/x-dtbncx+xml"]');
+            if (tocItem) {
+                const basePath = opfPath.replace(/[^/]*$/, '');
+                const tocPath = basePath + tocItem.getAttribute('href');
+                try {
+                    const tocContent = await zip.file(tocPath).async('string');
+                    const tocDoc = parser.parseFromString(tocContent, 'text/xml');
+                    tocDoc.querySelectorAll('navPoint').forEach((nav, idx) => {
+                        const textEl = nav.querySelector('navLabel text') || nav.querySelector('text');
+                        const contentEl = nav.querySelector('content');
+                        if (textEl && contentEl) {
+                            toc.push({
+                                title: textEl.textContent.trim(),
+                                src: contentEl.getAttribute('src').split('#')[0],
+                                index: idx + 1
+                            });
+                        }
+                    });
+                } catch (err) { console.warn('NCX TOC error:', err); }
+            }
+            
+            if (toc.length === 0) {
+                const navItem = opfDoc.querySelector('item[properties*="nav"]');
+                if (navItem) {
+                    const basePath = opfPath.replace(/[^/]*$/, '');
+                    const navPath = basePath + navItem.getAttribute('href');
+                    try {
+                        const navContent = await zip.file(navPath).async('string');
+                        const navDoc = parser.parseFromString(navContent, 'text/html');
+                        const navLinks = navDoc.querySelectorAll('nav[*|type="toc"] a, nav#toc a, .toc a');
+                        navLinks.forEach((link, idx) => {
+                            const href = link.getAttribute('href');
+                            if (href) {
+                                toc.push({
+                                    title: link.textContent.trim() || `Bölüm ${idx + 1}`,
+                                    src: href.split('#')[0],
+                                    index: idx + 1
+                                });
+                            }
+                        });
+                    } catch (err) { console.warn('NAV TOC error:', err); }
+                }
+            }
+            
+            const basePath = opfPath.replace(/[^/]*$/, '');
+            opfDoc.querySelectorAll('spine itemref').forEach((item, idx) => {
+                const idref = item.getAttribute('idref');
+                const manifestItem = opfDoc.querySelector(`item[id="${idref}"]`);
+                if (manifestItem) {
+                    const href = manifestItem.getAttribute('href');
+                    const fullHref = href.startsWith('/') ? href : basePath + href;
+                    const tocEntry = toc.find(t => {
+                        const tocHref = t.src.startsWith('/') ? t.src : basePath + t.src;
+                        return tocHref === fullHref || t.src === href;
+                    });
+                    
+                    chapters.push({
+                        title: tocEntry ? tocEntry.title : `Bölüm ${idx + 1}`,
+                        href: href,
+                        fullPath: fullHref,
+                        index: idx + 1
+                    });
+                }
+            });
+            
+            return { chapters, toc, zip, opfPath, basePath };
+        }
+
+        $('detectBtn').onclick = async () => {
+            $('detectBtn').disabled = true;
+            $('detectBtn').textContent = '🔄 Algılanıyor...';
+            
+            try {
+                if (fileType === 'pdf') await detectPDFChapters();
+                else if (fileType === 'epub') await detectEPUBChapters();
+            } catch (error) {
+                $('bookmarkInfo').innerHTML = `<div class="warning"><strong>⚠️ Hata:</strong> ${error.message}</div>`;
+                $('bookmarkInfo').classList.remove('hidden');
+            }
+            
+            $('detectBtn').disabled = false;
+            $('detectBtn').textContent = '🔍 Bölümleri Algıla';
+        };
+
+        // GÜNCELLENMİŞ VE GÜÇLENDİRİLMİŞ PDF ALGILAMA FONKSİYONU
+        async function detectPDFChapters() {
+            try {
+                const outline = await pdfDoc.getOutline();
+                
+                if (!outline || outline.length === 0) {
+                    $('bookmarkInfo').innerHTML = `
+                        <div class="warning">
+                            <strong>⚠️ Otomatik Bölüm Bulunamadı</strong><br>
+                            Bu PDF dosyasının içinde dijital "Yer İmleri" (Bookmarks) tablosu tanımlanmamış.<br>
+                            Lütfen <strong>"✏️ Manuel"</strong> modu kullanarak bölümleri elle ekleyin.
+                        </div>`;
+                    $('bookmarkInfo').classList.remove('hidden');
+                    return;
+                }
+
+                splits = [];
+                let html = '<div class="bookmark-list"><strong>Bulunan Bölümler:</strong><br><br>';
+                
+                // İç içe geçmiş menüleri düz listeye çevir
+                const flattenOutline = (items) => {
+                    let result = [];
+                    for (const item of items) {
+                        result.push(item);
+                        if (item.items && item.items.length > 0) {
+                            result = result.concat(flattenOutline(item.items));
+                        }
+                    }
+                    return result;
+                };
+
+                const allItems = flattenOutline(outline);
+                
+                // Çok fazla alt başlık varsa ana başlıkları kullan, yoksa hepsini dene
+                const processList = allItems.length > 0 ? allItems : outline;
+
+                for (let i = 0; i < processList.length; i++) {
+                    const item = processList[i];
+                    let pageNum = null;
+                    
+                    try {
+                        if (item.dest) {
+                            let dest = item.dest;
+                            if (typeof dest === 'string') {
+                                dest = await pdfDoc.getDestination(dest);
+                            }
+                            if (dest && Array.isArray(dest)) {
+                                const ref = dest[0]; 
+                                try {
+                                    const index = await pdfDoc.getPageIndex(ref);
+                                    pageNum = index + 1;
+                                } catch (e) { }
+                            }
+                        }
+                    } catch (err) { }
+                    
+                    if (!pageNum) continue;
+                    
+                    splits.push({ 
+                        name: (item.title || `Bölüm ${i + 1}`).trim(), 
+                        start: pageNum, 
+                        end: null
+                    });
+                }
+
+                // Sıralama ve Temizleme
+                splits.sort((a, b) => a.start - b.start);
+                splits = splits.filter((item, index, self) =>
+                    index === self.findIndex((t) => (t.start === item.start))
+                );
+
+                // Bitiş Sayfalarını Hesapla
+                for (let i = 0; i < splits.length; i++) {
+                    if (i < splits.length - 1) {
+                        splits[i].end = splits[i+1].start - 1;
+                        if (splits[i].end < splits[i].start) splits[i].end = splits[i].start;
+                    } else {
+                        splits[i].end = pdfDoc.numPages;
+                    }
+                    
+                    html += `
+                        <div class="bookmark-item">
+                            <span class="title">${splits[i].name}</span>
+                            <span class="page">S ${splits[i].start}-${splits[i].end}</span>
+                        </div>`;
+                }
+
+                if (splits.length === 0) {
+                     $('bookmarkInfo').innerHTML = '<div class="warning">Yer imleri bulundu ancak sayfa numaraları çözülemedi. Manuel mod kullanın.</div>';
+                } else {
+                    $('bookmarkInfo').innerHTML = html + '</div>';
+                }
+                
+                $('bookmarkInfo').classList.remove('hidden');
+                $('splitSection').classList.remove('hidden');
+                $('processBtn').classList.remove('hidden');
+                renderSplits();
+
+            } catch (err) {
+                console.error(err);
+                $('bookmarkInfo').innerHTML = `<div class="warning"><strong>Hata:</strong> PDF yapısı okunamadı.<br>Manuel modu kullanınız.</div>`;
+                $('bookmarkInfo').classList.remove('hidden');
+            }
+        }
+
+        async function detectEPUBChapters() {
+            if (!epubData?.chapters) {
+                $('bookmarkInfo').innerHTML = '<div class="warning"><strong>⚠️</strong> Bölüm bulunamadı.</div>';
+                $('bookmarkInfo').classList.remove('hidden');
+                return;
+            }
+
+            splits = [];
+            let html = '<div class="bookmark-list"><strong>Bulunan Bölümler:</strong><br><br>';
+            
+            epubData.chapters.forEach((ch, i) => {
+                splits.push({ name: ch.title, start: i + 1, end: i + 1, href: ch.href });
+                html += `<div class="bookmark-item"><span class="title">${ch.title}</span><span class="page">Bölüm ${i + 1}</span></div>`;
+            });
+            
+            $('bookmarkInfo').innerHTML = html + '</div>';
+            $('bookmarkInfo').classList.remove('hidden');
+            $('splitSection').classList.remove('hidden');
+            $('processBtn').classList.remove('hidden');
+            renderSplits();
+        }
+
+        function renderSplits() {
+            const max = getTotalPages();
+            $('splitList').innerHTML = splits.map((s, i) => `
+                <div class="split-item">
+                    <input type="text" value="${s.name}" onchange="updateSplit(${i}, 'name', this.value)">
+                    ${fileType === 'epub' ? `<span style="padding:10px;color:#666">Bölüm ${s.start}</span>` : 
+                    `<input type="number" min="1" max="${max}" value="${s.start}" onchange="updateSplit(${i}, 'start', this.value)">
+                     <input type="number" min="1" max="${max}" value="${s.end}" onchange="updateSplit(${i}, 'end', this.value)">`}
+                    <button class="remove-btn" onclick="removeSplit(${i})">✕</button>
+                </div>
+            `).join('');
+        }
+
+        window.updateSplit = (i, f, v) => splits[i][f] = f === 'name' ? v : parseInt(v);
+        window.removeSplit = i => { splits.splice(i, 1); renderSplits(); };
+        $('addSplitBtn').onclick = () => { splits.push({name: `Bölüm ${splits.length + 1}`, start: 1, end: getTotalPages()}); renderSplits(); };
+
+        // ----------------------------------------------------
+        // İŞLEM, DÖNÜŞTÜRME VE ZIP OLUŞTURMA KISMI
+        // ----------------------------------------------------
+        $('processBtn').onclick = async () => {
+            $('progressSection').style.display = 'block';
+            $('processBtn').disabled = true;
+            
+            console.log(`Toplam ${splits.length} bölüm işlenecek`);
+            
+            const outputZip = new JSZip();
+            const originalFileName = $('fileName').textContent.replace(/\.[^/.]+$/, '');
+            let hasError = false;
+
+            for (let i = 0; i < splits.length; i++) {
+                const s = splits[i];
+                $('statusText').textContent = `${s.name} işleniyor... (${i + 1}/${splits.length})`;
+                const progressPercent = Math.round(((i) / splits.length) * 100);
+                $('progressFill').style.width = `${progressPercent}%`;
+                $('progressFill').textContent = `${progressPercent}%`;
+                
+                try {
+                    let blobData = null;
+                    let fileName = "";
+
+                    if (fileType === 'pdf') {
+                         blobData = await createPDFBlob(s.name, s.start, s.end);
+                         fileName = `${s.name}.pdf`;
+                    } else if (fileType === 'epub') {
+                        // Markdown dönüşümü burada çağrılıyor
+                        blobData = await createEPUBMarkdownBlob(s);
+                        fileName = `${s.name}.md`;
+                    }
+
+                    if(blobData) {
+                        const cleanName = fileName.replace(/[<>:"/\\|?*]+/g, '_');
+                        outputZip.file(cleanName, blobData);
+                    }
+                    
+                    console.log(`Bölüm ${i + 1}/${splits.length} hazır`);
+                    
+                } catch (error) {
+                    console.error(`Bölüm ${i + 1} işlenirken hata:`, error);
+                    $('statusText').textContent = `⚠️ ${s.name} hatası, devam ediliyor...`;
+                    hasError = true;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
+                const finalProgress = Math.round(((i + 1) / splits.length) * 100);
+                $('progressFill').style.width = `${finalProgress}%`;
+                $('progressFill').textContent = `${finalProgress}%`;
+            }
+            
+            $('statusText').textContent = '📦 ZIP dosyası oluşturuluyor...';
+            
+            try {
+                const content = await outputZip.generateAsync({type: "blob"});
+                downloadWithLink(content, `${originalFileName}_Bolumler.zip`);
+                $('statusText').textContent = '✅ İşlem tamamlandı! Dosyalar indi.';
+            } catch (e) {
+                console.error(e);
+                $('statusText').textContent = '❌ ZIP oluşturulurken hata oluştu.';
+            }
+
+            $('processBtn').disabled = false;
+        };
+
+        async function createPDFBlob(name, start, end) {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('p', 'pt', 'a4');
+            let first = true;
+            
+            for (let p = start; p <= end; p++) {
+                const page = await pdfDoc.getPage(p);
+                const vp = page.getViewport({ scale: 2 });
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = vp.width;
+                canvas.height = vp.height;
+                await page.render({ canvasContext: ctx, viewport: vp }).promise;
+                const img = canvas.toDataURL('image/jpeg', 0.8);
+                
+                if (!first) pdf.addPage();
+                first = false;
+                
+                const pw = pdf.internal.pageSize.getWidth();
+                const ph = pdf.internal.pageSize.getHeight();
+                const ratio = Math.min(pw / vp.width, ph / vp.height);
+                pdf.addImage(img, 'JPEG', 0, 0, vp.width * ratio, vp.height * ratio);
+            }
+            
+            return pdf.output('blob');
+        }
+
+        // EPUB'ı Markdown'a Dönüştüren Fonksiyon
+        async function createEPUBMarkdownBlob(split) {
+            try {
+                const filePath = epubData.basePath + split.href;
+                let content;
+                
+                try {
+                    content = await epubData.zip.file(filePath).async('string');
+                } catch (err) {
+                    try {
+                        content = await epubData.zip.file(split.href).async('string');
+                    } catch (err2) {
+                        content = `<html><body><h1>${split.name}</h1><p>İçerik okunamadı.</p></body></html>`;
+                    }
+                }
+                
+                // Markdown'a Çevir
+                let markdownContent = `# ${split.name}\n\n`; // Başlığı ekle
+                markdownContent += htmlToMarkdown(content);
+                
+                return new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
+                
+            } catch (error) {
+                console.error('EPUB Markdown oluşturma hatası:', error);
+                throw error;
+            }
+        }
+        
+        // HTML'den Markdown'a Basit Çevirici Helper
+        function htmlToMarkdown(htmlContent) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(htmlContent, 'text/html');
+            
+            doc.querySelectorAll('script, style, link, meta').forEach(el => el.remove());
+            
+            function walk(node) {
+                if (node.nodeType === 3) {
+                    return node.textContent.replace(/\s+/g, ' '); 
+                }
+                if (node.nodeType === 1) {
+                    const tag = node.tagName.toLowerCase();
+                    let content = '';
+                    
+                    for (let child of node.childNodes) {
+                        content += walk(child);
+                    }
+                    
+                    content = content.trim();
+                    if (!content && tag !== 'br' && tag !== 'hr') return '';
+
+                    switch (tag) {
+                        case 'h1': return `# ${content}\n\n`;
+                        case 'h2': return `## ${content}\n\n`;
+                        case 'h3': return `### ${content}\n\n`;
+                        case 'h4': return `#### ${content}\n\n`;
+                        case 'h5': return `##### ${content}\n\n`;
+                        case 'h6': return `###### ${content}\n\n`;
+                        case 'p': return `${content}\n\n`;
+                        case 'div': return `${content}\n\n`;
+                        case 'br': return `\n`;
+                        case 'hr': return `\n---\n\n`;
+                        case 'strong': case 'b': return ` **${content}** `;
+                        case 'em': case 'i': return ` *${content}* `;
+                        case 'li': return `- ${content}\n`;
+                        case 'ul': case 'ol': return `${content}\n`;
+                        case 'blockquote': return `> ${content}\n\n`;
+                        default: return `${content} `;
+                    }
+                }
+                return '';
+            }
+            
+            return walk(doc.body).trim();
+        }
+        
+        function downloadWithLink(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
